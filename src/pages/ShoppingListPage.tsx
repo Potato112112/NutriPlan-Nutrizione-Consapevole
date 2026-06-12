@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { MacroCategory, MACRO_LABELS, MACRO_SHORT, MACRO_BADGE_COLORS } from "../types";
+import { MacroCategory, MACRO_LABELS, MACRO_SHORT, MACRO_BADGE_COLORS, ALL_MACRO_CATEGORIES } from "../types";
 import { MacroBadge } from "../components/MacroBadge";
 import { Plus, Trash2, X, Printer, ChevronDown, ChevronUp, Check, Pencil, Search, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
@@ -282,7 +282,7 @@ export function ShoppingListPage() {
                             <MacroBadge category={cat as MacroCategory} />
                           )}
                           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                            {cat !== "altro" ? MACRO_LABELS[cat as MacroCategory] : "Altro"}
+                            {MACRO_LABELS[cat as MacroCategory] ?? "Altro"}
                           </span>
                         </div>
                         <div className="space-y-1.5 pl-2">
@@ -457,12 +457,11 @@ function AddItemModal({ editItemId, itemForm, setItemForm, ingSearch, setIngSear
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
             >
               <option value="">Nessuna categoria</option>
-              <option value="carboidrati_complessi">C — Carboidrati Complessi</option>
-              <option value="zuccheri_semplici">Z — Zuccheri Semplici</option>
-              <option value="proteine">P — Proteine</option>
-              <option value="grassi">G — Grassi</option>
-              <option value="minerali_vitamine_fibre">V — Minerali / Vitamine / Fibre</option>
-              <option value="spezie_erbe_condimenti">S — Spezie, Erbe e Condimenti</option>
+              {ALL_MACRO_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {MACRO_SHORT[cat]} — {MACRO_LABELS[cat]}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -498,11 +497,13 @@ const CAT_HEX: Record<string, string> = {
   grassi: "#a855f7",
   minerali_vitamine_fibre: "#22c55e",
   spezie_erbe_condimenti: "#ec4899",
+  altro: "#6b7280",
+  integratori: "#14b8a6",
 };
 const CAT_LETTER: Record<string, string> = {
   carboidrati_complessi: "C", zuccheri_semplici: "Z",
   proteine: "P", grassi: "G", minerali_vitamine_fibre: "V",
-  spezie_erbe_condimenti: "S",
+  spezie_erbe_condimenti: "S", altro: "A", integratori: "I",
 };
 
 function ShoppingPrintView({ list, onClose }: { list: any; onClose: () => void }) {
@@ -570,7 +571,7 @@ function ShoppingPrintView({ list, onClose }: { list: any; onClose: () => void }
                     </span>
                   )}
                   <span style={{ fontSize: "10px", fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {cat !== "altro" ? MACRO_LABELS[cat as MacroCategory] : "Altro"}
+                    {MACRO_LABELS[cat as MacroCategory] ?? "Altro"}
                   </span>
                 </div>
                 {/* Voci */}

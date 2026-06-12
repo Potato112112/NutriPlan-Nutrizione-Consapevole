@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { mealTypeValidator } from "./validators";
 
 export const list = query({
   args: {},
@@ -77,14 +78,7 @@ export const getManyWithItems = query({
 export const create = mutation({
   args: {
     name: v.string(),
-    mealType: v.union(
-      v.literal("colazione"),
-      v.literal("spuntino_mattina"),
-      v.literal("pranzo"),
-      v.literal("spuntino_pomeriggio"),
-      v.literal("cena"),
-      v.literal("altro")
-    ),
+    mealType: mealTypeValidator,
     notes: v.optional(v.string()),
     items: v.array(
       v.object({
@@ -116,14 +110,7 @@ export const update = mutation({
   args: {
     id: v.id("meals"),
     name: v.string(),
-    mealType: v.union(
-      v.literal("colazione"),
-      v.literal("spuntino_mattina"),
-      v.literal("pranzo"),
-      v.literal("spuntino_pomeriggio"),
-      v.literal("cena"),
-      v.literal("altro")
-    ),
+    mealType: mealTypeValidator,
     notes: v.optional(v.string()),
     items: v.array(
       v.object({

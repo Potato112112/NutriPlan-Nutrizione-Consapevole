@@ -1,18 +1,8 @@
-import { MEAL_TYPE_ICONS, MEAL_TYPE_LABELS, MACRO_SHORT, MACRO_LABELS, MacroCategory, MealType } from "../types";
+import { MEAL_TYPE_ICONS, MEAL_TYPE_LABELS, MACRO_SHORT, MACRO_LABELS, MacroCategory, MealType, ALL_MACRO_CATEGORIES, MACRO_COLORS } from "../types";
 
-const ALL_CATS: MacroCategory[] = [
-  "carboidrati_complessi", "zuccheri_semplici", "proteine",
-  "grassi", "minerali_vitamine_fibre", "spezie_erbe_condimenti",
-];
+const ALL_CATS: MacroCategory[] = ALL_MACRO_CATEGORIES;
 
-const CAT_HEX: Record<MacroCategory, string> = {
-  carboidrati_complessi: "#f59e0b",
-  zuccheri_semplici: "#f97316",
-  proteine: "#3b82f6",
-  grassi: "#a855f7",
-  minerali_vitamine_fibre: "#22c55e",
-  spezie_erbe_condimenti: "#ec4899",
-};
+const CAT_HEX: Record<MacroCategory, string> = MACRO_COLORS;
 
 function calcItemProt(item: any): number {
   if (item.ingredient?.proteinsPer100g == null) return 0;

@@ -1,20 +1,14 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
+import { categoryValidator, mealTypeValidator } from "./validators";
 
 const applicationTables = {
   // Banca dati ingredienti
   ingredients: defineTable({
     userId: v.id("users"),
     name: v.string(),
-    category: v.union(
-      v.literal("carboidrati_complessi"),
-      v.literal("zuccheri_semplici"),
-      v.literal("proteine"),
-      v.literal("grassi"),
-      v.literal("minerali_vitamine_fibre"),
-      v.literal("spezie_erbe_condimenti")
-    ),
+    category: categoryValidator,
     kcalPer100g: v.number(),
     carbsPer100g: v.optional(v.number()),
     proteinsPer100g: v.optional(v.number()),
@@ -41,14 +35,7 @@ const applicationTables = {
   meals: defineTable({
     userId: v.id("users"),
     name: v.string(),
-    mealType: v.union(
-      v.literal("colazione"),
-      v.literal("spuntino_mattina"),
-      v.literal("pranzo"),
-      v.literal("spuntino_pomeriggio"),
-      v.literal("cena"),
-      v.literal("altro")
-    ),
+    mealType: mealTypeValidator,
     totalKcal: v.number(),
     notes: v.optional(v.string()),
   })
@@ -59,15 +46,9 @@ const applicationTables = {
   dayMealSlots: defineTable({
     dayId: v.id("days"),
     mealId: v.id("meals"),
-    mealType: v.union(
-      v.literal("colazione"),
-      v.literal("spuntino_mattina"),
-      v.literal("pranzo"),
-      v.literal("spuntino_pomeriggio"),
-      v.literal("cena"),
-      v.literal("altro")
-    ),
+    mealType: mealTypeValidator,
     order: v.number(),
+    mealName: v.optional(v.string()),
     overrideItems: v.optional(v.array(v.object({
       ingredientId: v.id("ingredients"),
       weightGrams: v.number(),
@@ -94,16 +75,10 @@ const applicationTables = {
     weekId: v.id("weeks"),
     dayId: v.id("days"),
     dayOfWeek: v.number(),
+    customDayName: v.optional(v.string()),
     customSlots: v.optional(v.array(v.object({
       mealId: v.id("meals"),
-      mealType: v.union(
-        v.literal("colazione"),
-        v.literal("spuntino_mattina"),
-        v.literal("pranzo"),
-        v.literal("spuntino_pomeriggio"),
-        v.literal("cena"),
-        v.literal("altro")
-      ),
+      mealType: mealTypeValidator,
       order: v.number(),
       mealName: v.optional(v.string()),
       totalKcal: v.number(),

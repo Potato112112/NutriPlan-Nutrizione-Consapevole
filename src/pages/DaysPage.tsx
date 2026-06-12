@@ -4,14 +4,16 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { MEAL_TYPE_LABELS, MEAL_TYPE_ICONS, MACRO_BG, MacroCategory, MealType } from "../types";
 import { MacroBadge } from "../components/MacroBadge";
+import { IngredientPicker } from "../components/IngredientPicker";
 import { DayPrintView } from "../components/DayPrintView";
-import { Plus, Pencil, Trash2, X, Printer, ChevronDown, ChevronUp, Copy, ArrowUpDown } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Printer, ChevronDown, ChevronUp, Copy, ArrowUpDown, Search } from "lucide-react";
 import { toast } from "sonner";
 
 type DaySlotForm = {
   mealId: Id<"meals"> | "";
   mealType: MealType;
   order: number;
+  mealName?: string;
   overrideItems?: {
     ingredientId: Id<"ingredients"> | "";
     weightGrams: string;
@@ -43,6 +45,7 @@ export function DaysPage() {
   const [form, setForm] = useState<DayForm>(emptyForm());
   const [expandedId, setExpandedId] = useState<Id<"days"> | null>(null);
   const [printDayId, setPrintDayId] = useState<Id<"days"> | null>(null);
+  const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
 
   const days = useQuery(api.days.list);
@@ -62,13 +65,15 @@ export function DaysPage() {
   const removeDay = useMutation(api.days.remove);
   const duplicateDay = useMutation(api.days.duplicate);
 
-  const sortedDays = [...(days ?? [])].sort((a, b) => {
-    if (sortBy === "name_asc") return a.name.localeCompare(b.name, "it");
-    if (sortBy === "name_desc") return b.name.localeCompare(a.name, "it");
-    if (sortBy === "kcal_asc") return a.totalKcal - b.totalKcal;
-    if (sortBy === "kcal_desc") return b.totalKcal - a.totalKcal;
-    return b._creationTime - a._creationTime;
-  });
+  const sortedDays = [...(days ?? [])]
+    .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === "name_asc") return a.name.localeCompare(b.name, "it");
+      if (sortBy === "name_desc") return b.name.localeCompare(a.name, "it");
+      if (sortBy === "kcal_asc") return a.totalKcal - b.totalKcal;
+      if (sortBy === "kcal_desc") return b.totalKcal - a.totalKcal;
+      return b._creationTime - a._creationTime;
+    });
 
   function openCreate() {
     setForm(emptyForm());
@@ -90,6 +95,7 @@ export function DaysPage() {
       mealId: s.mealId as Id<"meals">,
       mealType: s.mealType,
       order: i,
+      ...(s.mealName?.trim() ? { mealName: s.mealName.trim() } : {}),
       overrideItems: s.overrideItems
         ?.filter((item) => item.ingredientId && item.weightGrams && parseFloat(item.weightGrams) > 0)
         .map((item) => {
@@ -149,7 +155,7 @@ export function DaysPage() {
     const slots = [...form.slots];
     if (field === "mealId" && value) {
       const meal = (meals ?? []).find((m) => m._id === value);
-      slots[idx] = { ...slots[idx], mealId: value, mealType: meal?.mealType as MealType ?? slots[idx].mealType, overrideItems: undefined };
+      slots[idx] = { ...slots[idx], mealId: value, mealType: meal?.mealType as MealType ?? slots[idx].mealType, overrideItems: undefined, mealName: undefined };
     } else {
       slots[idx] = { ...slots[idx], [field]: value };
     }
@@ -195,27 +201,38 @@ export function DaysPage() {
         </button>
       </div>
 
-      {/* Sort bar */}
-      <div className="flex items-center gap-2 mb-4">
-        <ArrowUpDown size={14} className="text-gray-400 shrink-0" />
-        <span className="text-xs text-gray-500 shrink-0">Ordina:</span>
-        <div className="flex gap-1.5 flex-wrap">
-          {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
-            <button
-              key={opt}
-              onClick={() => setSortBy(opt)}
-              className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${sortBy === opt ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
-            >
-              {SORT_LABELS[opt]}
-            </button>
-          ))}
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cerca giornata..."
+            className="pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 w-52"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <ArrowUpDown size={14} className="text-gray-400 shrink-0" />
+          <span className="text-xs text-gray-500 shrink-0">Ordina:</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setSortBy(opt)}
+                className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${sortBy === opt ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+              >
+                {SORT_LABELS[opt]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="space-y-3">
         {sortedDays.length === 0 && (
           <div className="text-center py-12 text-gray-400 bg-white rounded-xl border">
-            Nessuna giornata alimentare creata
+            {search ? "Nessuna giornata trovata" : "Nessuna giornata alimentare creata"}
           </div>
         )}
         {sortedDays.map((day) => (
@@ -424,37 +441,6 @@ function MealPicker({ value, onChange, meals }: {
   );
 }
 
-function IngredientPicker({ value, onChange, ingredients }: { value: string; onChange: (id: string) => void; ingredients: any[] }) {
-  const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const sorted = [...ingredients].sort((a, b) => a.name.localeCompare(b.name, "it"));
-  const filteredIngs = search ? sorted.filter((i) => i.name.toLowerCase().includes(search.toLowerCase())) : sorted;
-  const selected = ingredients.find((i) => i._id === value);
-  if (selected) {
-    return (
-      <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-emerald-50 border-emerald-200">
-        <span className="text-xs font-medium text-gray-800 flex-1">{selected.name}</span>
-        <button type="button" onClick={() => onChange("")} className="text-gray-400 hover:text-red-500"><X size={12} /></button>
-      </div>
-    );
-  }
-  return (
-    <div className="relative">
-      <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} placeholder="Cerca ingrediente..." className="w-full border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-      {open && (
-        <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {filteredIngs.slice(0, 50).map((i: any) => (
-            <button key={i._id} type="button" onMouseDown={() => { onChange(i._id); setSearch(""); setOpen(false); }} className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50">
-              {i.name}
-            </button>
-          ))}
-          {filteredIngs.length === 0 && <p className="text-xs text-gray-400 text-center py-3">Nessun risultato</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMealsWithItems, totalKcal, addSlot, removeSlot, updateSlot, onSubmit, onClose, expandedDay }: any) {
   const [initialized, setInitialized] = useState(false);
   const mealsWithItemsMap = new Map((selectedMealsWithItems as any[]).map((meal) => [meal._id, meal]));
@@ -466,6 +452,7 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
         mealId: slot.mealId,
         mealType: slot.mealType,
         order: i,
+        mealName: slot.mealName,
         overrideItems: slot.overrideItems?.map((item: any) => ({
           ingredientId: item.ingredientId,
           weightGrams: String(item.weightGrams),
@@ -484,13 +471,24 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
   function enableOverride(idx: number) {
     const slots = [...form.slots];
     const base = getEffectiveItems(slots[idx]);
-    slots[idx] = { ...slots[idx], overrideItems: base.length > 0 ? base : [{ ingredientId: "", weightGrams: "" }] };
+    const meal = mealsWithItemsMap.get(slots[idx].mealId) ?? (meals as any[]).find((m: any) => m._id === slots[idx].mealId);
+    slots[idx] = {
+      ...slots[idx],
+      mealName: slots[idx].mealName ?? meal?.name ?? "",
+      overrideItems: base.length > 0 ? base : [{ ingredientId: "", weightGrams: "" }],
+    };
     setForm({ ...form, slots });
   }
 
   function clearOverride(idx: number) {
     const slots = [...form.slots];
-    slots[idx] = { ...slots[idx], overrideItems: undefined };
+    slots[idx] = { ...slots[idx], overrideItems: undefined, mealName: undefined };
+    setForm({ ...form, slots });
+  }
+
+  function updateOverrideName(idx: number, name: string) {
+    const slots = [...form.slots];
+    slots[idx] = { ...slots[idx], mealName: name };
     setForm({ ...form, slots });
   }
 
@@ -579,10 +577,20 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
                       </div>
                       {slot.overrideItems && (
                         <div className="space-y-1.5">
+                          <div>
+                            <label className="text-xs text-gray-500">Nome pasto (solo in questa giornata)</label>
+                            <input
+                              type="text"
+                              value={slot.mealName ?? ""}
+                              onChange={(e) => updateOverrideName(idx, e.target.value)}
+                              className="w-full mt-0.5 border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                              placeholder="Nome del pasto"
+                            />
+                          </div>
                           {slot.overrideItems.map((item, itemIdx) => (
                             <div key={itemIdx} className="flex gap-2 items-center">
                               <div className="flex-1">
-                                <IngredientPicker value={item.ingredientId} onChange={(id) => updateOverrideItem(idx, itemIdx, "ingredientId", id)} ingredients={ingredients} />
+                                <IngredientPicker size="sm" value={item.ingredientId} onChange={(id) => updateOverrideItem(idx, itemIdx, "ingredientId", id)} ingredients={ingredients} />
                               </div>
                               <input type="number" min="1" step="1" value={item.weightGrams} onChange={(e) => updateOverrideItem(idx, itemIdx, "weightGrams", e.target.value)} className="w-24 border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="grammi" />
                               <button type="button" onClick={() => removeOverrideItem(idx, itemIdx)} className="p-1 text-gray-400 hover:text-red-500"><X size={12} /></button>

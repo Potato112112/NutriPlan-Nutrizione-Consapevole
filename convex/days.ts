@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { mealTypeValidator } from "./validators";
 
 export const list = query({
   args: {},
@@ -41,7 +42,7 @@ export const getWithMeals = query({
           })
         );
         const totalKcal = effectiveItems.reduce((sum, item) => sum + item.kcal, 0);
-        return { ...slot, meal: { ...meal, totalKcal, items: itemsWithIngredients } };
+        return { ...slot, meal: { ...meal, name: slot.mealName ?? meal.name, totalKcal, items: itemsWithIngredients } };
       })
     );
     const validSlots = slotsWithMeals.filter(Boolean);
@@ -80,7 +81,7 @@ export const getManyWithMeals = query({
             })
           );
           const totalKcal = effectiveItems.reduce((sum, item) => sum + item.kcal, 0);
-          return { ...slot, meal: { ...meal, totalKcal, items: itemsWithIngredients } };
+          return { ...slot, meal: { ...meal, name: slot.mealName ?? meal.name, totalKcal, items: itemsWithIngredients } };
         })
       );
       const validSlots = slotsWithMeals.filter(Boolean).sort((a, b) => (a!.order ?? 0) - (b!.order ?? 0));
@@ -98,15 +99,9 @@ export const create = mutation({
     mealSlots: v.array(
       v.object({
         mealId: v.id("meals"),
-        mealType: v.union(
-          v.literal("colazione"),
-          v.literal("spuntino_mattina"),
-          v.literal("pranzo"),
-          v.literal("spuntino_pomeriggio"),
-          v.literal("cena"),
-          v.literal("altro")
-        ),
+        mealType: mealTypeValidator,
         order: v.number(),
+        mealName: v.optional(v.string()),
         overrideItems: v.optional(v.array(v.object({
           ingredientId: v.id("ingredients"),
           weightGrams: v.number(),
@@ -148,15 +143,9 @@ export const update = mutation({
     mealSlots: v.array(
       v.object({
         mealId: v.id("meals"),
-        mealType: v.union(
-          v.literal("colazione"),
-          v.literal("spuntino_mattina"),
-          v.literal("pranzo"),
-          v.literal("spuntino_pomeriggio"),
-          v.literal("cena"),
-          v.literal("altro")
-        ),
+        mealType: mealTypeValidator,
         order: v.number(),
+        mealName: v.optional(v.string()),
         overrideItems: v.optional(v.array(v.object({
           ingredientId: v.id("ingredients"),
           weightGrams: v.number(),

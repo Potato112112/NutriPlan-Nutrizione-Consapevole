@@ -2,23 +2,23 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { MEAL_TYPE_LABELS, MEAL_TYPE_ICONS, MacroCategory, MealType } from "../types";
+import { MEAL_TYPE_LABELS, MEAL_TYPE_ICONS, MacroCategory, MealType, ALL_MEAL_TYPES } from "../types";
 import { MacroBadge } from "../components/MacroBadge";
+import { IngredientPicker } from "../components/IngredientPicker";
 import { MealCollectionPrintView } from "../components/MealCollectionPrintView";
 import {
   Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Copy, ArrowUpDown,
   CheckSquare, Square, Printer, Save, ChevronUp as Up, ChevronDown as Down,
-  GripVertical,
+  GripVertical, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
-const MEAL_TYPES: MealType[] = [
-  "colazione", "spuntino_mattina", "pranzo", "spuntino_pomeriggio", "cena", "altro"
-];
+const MEAL_TYPES: MealType[] = ALL_MEAL_TYPES;
 
 const MEAL_TYPE_ORDER: Record<MealType, number> = {
   colazione: 0, spuntino_mattina: 1, pranzo: 2,
-  spuntino_pomeriggio: 3, cena: 4, altro: 5,
+  spuntino_pomeriggio: 3, cena: 4, pasto: 5, extra: 6,
+  attivita_motoria: 7, altro: 8,
 };
 
 type SortOption = "type" | "name_asc" | "name_desc" | "kcal_asc" | "kcal_desc";
@@ -55,6 +55,7 @@ export function MealsPage() {
   const [form, setForm] = useState<MealForm>(emptyForm());
   const [expandedId, setExpandedId] = useState<Id<"meals"> | null>(null);
   const [filterType, setFilterType] = useState<MealType | "">("");
+  const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("type");
 
   const [selectedMealOrder, setSelectedMealOrder] = useState<Id<"meals">[]>([]);
@@ -89,6 +90,7 @@ export function MealsPage() {
 
   const filtered = [...(meals ?? [])]
     .filter((m) => !filterType || m.mealType === filterType)
+    .filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === "name_asc") return a.name.localeCompare(b.name, "it");
       if (sortBy === "name_desc") return b.name.localeCompare(a.name, "it");
@@ -254,6 +256,15 @@ export function MealsPage() {
       {activeTab === "list" && (
         <>
           <div className="flex flex-wrap gap-2 mb-3">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cerca pasto..."
+                className="pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 w-52"
+              />
+            </div>
             <button onClick={() => setFilterType("")} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${!filterType ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>Tutti</button>
             {MEAL_TYPES.map((t) => (
               <button key={t} onClick={() => setFilterType(t)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${filterType === t ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
@@ -460,7 +471,16 @@ function SelectionTab({ meals, selFiltered, selectedMealIds, selectedMealOrder, 
         ))}
       </div>
       <div className="mb-4">
-        <input type="text" value={selSearch} onChange={(e) => setSelSearch(e.target.value)} placeholder="Cerca pasto per nome..." className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={selSearch}
+            onChange={(e) => setSelSearch(e.target.value)}
+            placeholder="Cerca pasto..."
+            className="pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 w-52"
+          />
+        </div>
       </div>
       <div className="flex items-center gap-2 mb-4">
         <ArrowUpDown size={14} className="text-gray-400 shrink-0" />
@@ -597,39 +617,6 @@ function SaveCollectionModal({ name, setName, notes, setNotes, selectedCount, is
   );
 }
 
-// ── Ingredient Picker ─────────────────────────────────────────────────────────
-function IngredientPicker({ value, onChange, ingredients }: { value: string; onChange: (id: string) => void; ingredients: any[] }) {
-  const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const sorted = [...ingredients].sort((a, b) => a.name.localeCompare(b.name, "it"));
-  const filteredIngs = search ? sorted.filter((i) => i.name.toLowerCase().includes(search.toLowerCase())) : sorted;
-  const selected = ingredients.find((i) => i._id === value);
-  if (selected) {
-    return (
-      <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-emerald-50 border-emerald-200">
-        <span className="text-sm font-medium text-gray-800 flex-1">{selected.name} <span className="text-xs text-gray-500">({selected.kcalPer100g} kcal/100g)</span></span>
-        <button type="button" onClick={() => onChange("")} className="text-gray-400 hover:text-red-500"><X size={13} /></button>
-      </div>
-    );
-  }
-  return (
-    <div className="relative">
-      <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} placeholder="Cerca ingrediente..." className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-      {open && (
-        <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {filteredIngs.slice(0, 50).map((i: any) => (
-            <button key={i._id} type="button" onMouseDown={() => { onChange(i._id); setSearch(""); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex items-center gap-2">
-              <span className="font-medium text-gray-800 flex-1">{i.name}</span>
-              <span className="text-xs text-gray-400 shrink-0">{i.kcalPer100g} kcal/100g</span>
-            </button>
-          ))}
-          {filteredIngs.length === 0 && <p className="text-xs text-gray-400 text-center py-3">Nessun risultato</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Meal Form Modal ───────────────────────────────────────────────────────────
 function MealFormModal({ form, setForm, editId, ingredients, totalKcal, calcKcal, addItem, removeItem, updateItem, onSubmit, onClose, expandedMeal }: any) {
   const [initialized, setInitialized] = useState(false);
@@ -653,7 +640,7 @@ function MealFormModal({ form, setForm, editId, ingredients, totalKcal, calcKcal
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tipo pasto *</label>
               <select value={form.mealType} onChange={(e) => setForm({ ...form, mealType: e.target.value as MealType })} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
-                {(["colazione", "spuntino_mattina", "pranzo", "spuntino_pomeriggio", "cena", "altro"] as MealType[]).map((t) => (
+                {ALL_MEAL_TYPES.map((t) => (
                   <option key={t} value={t}>{MEAL_TYPE_ICONS[t]} {MEAL_TYPE_LABELS[t]}</option>
                 ))}
               </select>

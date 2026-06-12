@@ -1,15 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-
-const categoryValidator = v.union(
-  v.literal("carboidrati_complessi"),
-  v.literal("zuccheri_semplici"),
-  v.literal("proteine"),
-  v.literal("grassi"),
-  v.literal("minerali_vitamine_fibre"),
-  v.literal("spezie_erbe_condimenti")
-);
+import { categoryValidator } from "./validators";
 
 export const list = query({
   args: { category: v.optional(v.string()) },

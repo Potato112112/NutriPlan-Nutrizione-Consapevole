@@ -1,5 +1,5 @@
 import React from "react";
-import { MEAL_TYPE_ICONS, MACRO_SHORT, MacroCategory, MealType, DAY_NAMES } from "../types";
+import { MEAL_TYPE_ICONS, MACRO_SHORT, MacroCategory, MealType, DAY_NAMES, ALL_MACRO_CATEGORIES } from "../types";
 
 const CAT_COLOR: Record<string, string> = {
   carboidrati_complessi: "bg-amber-500",
@@ -8,6 +8,8 @@ const CAT_COLOR: Record<string, string> = {
   grassi: "bg-purple-500",
   minerali_vitamine_fibre: "bg-green-500",
   spezie_erbe_condimenti: "bg-pink-500",
+  altro: "bg-gray-500",
+  integratori: "bg-teal-500",
 };
 
 const CAT_LABEL: Record<string, string> = {
@@ -17,6 +19,8 @@ const CAT_LABEL: Record<string, string> = {
   grassi: "Grassi",
   minerali_vitamine_fibre: "Vit.",
   spezie_erbe_condimenti: "Spezie",
+  altro: "Altro",
+  integratori: "Integ.",
 };
 
 function calcSlotProt(slot: any): number {
@@ -73,7 +77,7 @@ export function WeekPrintView({ week, onClose }: { week: any; onClose: () => voi
               {week.notes && <div className="wp-week-notes">{week.notes}</div>}
             </div>
             <div className="wp-legend">
-              {(["carboidrati_complessi", "zuccheri_semplici", "proteine", "grassi", "minerali_vitamine_fibre", "spezie_erbe_condimenti"] as MacroCategory[]).map((cat) => (
+              {ALL_MACRO_CATEGORIES.map((cat) => (
                 <div key={cat} className="wp-legend-item">
                   <span className={`wp-macro-dot ${CAT_COLOR[cat]}`}>{MACRO_SHORT[cat]}</span>
                   <span className="wp-legend-label">{CAT_LABEL[cat]}</span>

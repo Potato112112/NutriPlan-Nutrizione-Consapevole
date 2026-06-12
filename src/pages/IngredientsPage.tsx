@@ -2,19 +2,12 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { MACRO_LABELS, MACRO_BG, MacroCategory, PORTION_LABELS } from "../types";
+import { MACRO_LABELS, MACRO_BG, MacroCategory, PORTION_LABELS, ALL_MACRO_CATEGORIES } from "../types";
 import { MacroBadge, MacroTag } from "../components/MacroBadge";
 import { Plus, Pencil, Trash2, Search, X, Copy } from "lucide-react";
 import { toast } from "sonner";
 
-const CATEGORIES: MacroCategory[] = [
-  "carboidrati_complessi",
-  "zuccheri_semplici",
-  "proteine",
-  "grassi",
-  "minerali_vitamine_fibre",
-  "spezie_erbe_condimenti",
-];
+const CATEGORIES: MacroCategory[] = ALL_MACRO_CATEGORIES;
 
 type IngredientForm = {
   name: string;
@@ -397,12 +390,11 @@ export function IngredientsPage() {
                   <input
                     required
                     type="number"
-                    min="0"
                     step="0.1"
                     value={form.kcalPer100g}
                     onChange={(e) => setForm({ ...form, kcalPer100g: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
-                    placeholder="es. 165"
+                    placeholder="es. 165 o -100"
                   />
                 </div>
               </div>

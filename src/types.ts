@@ -6,7 +6,9 @@ export type MacroCategory =
   | "proteine"
   | "grassi"
   | "minerali_vitamine_fibre"
-  | "spezie_erbe_condimenti";
+  | "spezie_erbe_condimenti"
+  | "altro"
+  | "integratori";
 
 export type MealType =
   | "colazione"
@@ -14,7 +16,33 @@ export type MealType =
   | "pranzo"
   | "spuntino_pomeriggio"
   | "cena"
+  | "pasto"
+  | "extra"
+  | "attivita_motoria"
   | "altro";
+
+export const ALL_MACRO_CATEGORIES: MacroCategory[] = [
+  "carboidrati_complessi",
+  "zuccheri_semplici",
+  "proteine",
+  "grassi",
+  "minerali_vitamine_fibre",
+  "spezie_erbe_condimenti",
+  "altro",
+  "integratori",
+];
+
+export const ALL_MEAL_TYPES: MealType[] = [
+  "colazione",
+  "spuntino_mattina",
+  "pranzo",
+  "spuntino_pomeriggio",
+  "cena",
+  "pasto",
+  "extra",
+  "attivita_motoria",
+  "altro",
+];
 
 export const MACRO_LABELS: Record<MacroCategory, string> = {
   carboidrati_complessi: "Carboidrati Complessi",
@@ -23,6 +51,8 @@ export const MACRO_LABELS: Record<MacroCategory, string> = {
   grassi: "Grassi",
   minerali_vitamine_fibre: "Minerali / Vitamine / Fibre",
   spezie_erbe_condimenti: "Spezie, Erbe e Condimenti",
+  altro: "Altro",
+  integratori: "Integratori",
 };
 
 export const MACRO_SHORT: Record<MacroCategory, string> = {
@@ -32,6 +62,8 @@ export const MACRO_SHORT: Record<MacroCategory, string> = {
   grassi: "G",
   minerali_vitamine_fibre: "V",
   spezie_erbe_condimenti: "S",
+  altro: "A",
+  integratori: "I",
 };
 
 export const MACRO_COLORS: Record<MacroCategory, string> = {
@@ -41,6 +73,8 @@ export const MACRO_COLORS: Record<MacroCategory, string> = {
   grassi: "#a855f7",
   minerali_vitamine_fibre: "#22c55e",
   spezie_erbe_condimenti: "#ec4899",
+  altro: "#6b7280",
+  integratori: "#14b8a6",
 };
 
 export const MACRO_BG: Record<MacroCategory, string> = {
@@ -50,6 +84,8 @@ export const MACRO_BG: Record<MacroCategory, string> = {
   grassi: "bg-purple-100 text-purple-800 border-purple-300",
   minerali_vitamine_fibre: "bg-green-100 text-green-800 border-green-300",
   spezie_erbe_condimenti: "bg-pink-100 text-pink-800 border-pink-300",
+  altro: "bg-gray-100 text-gray-800 border-gray-300",
+  integratori: "bg-teal-100 text-teal-800 border-teal-300",
 };
 
 export const MACRO_BADGE_COLORS: Record<MacroCategory, string> = {
@@ -59,6 +95,8 @@ export const MACRO_BADGE_COLORS: Record<MacroCategory, string> = {
   grassi: "bg-purple-500 text-white",
   minerali_vitamine_fibre: "bg-green-500 text-white",
   spezie_erbe_condimenti: "bg-pink-500 text-white",
+  altro: "bg-gray-500 text-white",
+  integratori: "bg-teal-500 text-white",
 };
 
 export const MEAL_TYPE_LABELS: Record<MealType, string> = {
@@ -67,6 +105,9 @@ export const MEAL_TYPE_LABELS: Record<MealType, string> = {
   pranzo: "Pranzo",
   spuntino_pomeriggio: "Spuntino Pomeriggio",
   cena: "Cena",
+  pasto: "Pasto",
+  extra: "Extra",
+  attivita_motoria: "Attività Motoria",
   altro: "Altro",
 };
 
@@ -76,6 +117,9 @@ export const MEAL_TYPE_ICONS: Record<MealType, string> = {
   pranzo: "🍽️",
   spuntino_pomeriggio: "🥪",
   cena: "🌙",
+  pasto: "🥘",
+  extra: "⭐",
+  attivita_motoria: "🏃",
   altro: "🍴",
 };
 

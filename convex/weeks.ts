@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { mealTypeValidator } from "./validators";
 
 export const list = query({
   args: {},
@@ -49,7 +50,7 @@ export const getWithDays = query({
               })
             );
             const totalKcal = effectiveItems.reduce((sum, item) => sum + item.kcal, 0);
-            return { ...slot, meal: { ...meal, totalKcal, items: itemsWithIngredients } };
+            return { ...slot, meal: { ...meal, name: slot.mealName ?? meal.name, totalKcal, items: itemsWithIngredients } };
           })
         );
         const validSlots = slotsWithMeals.filter(Boolean);
@@ -79,10 +80,10 @@ export const getWithDays = query({
             })
           );
           const customTotal = customSlots.reduce((sum, slot) => sum + (slot.meal?.totalKcal ?? 0), 0);
-          return { ...wd, day: { ...day, totalKcal: customTotal, slots: customSlots } };
+          return { ...wd, day: { ...day, name: wd.customDayName ?? day.name, totalKcal: customTotal, slots: customSlots } };
         }
         const dayTotal = validSlots.reduce((sum, slot) => sum + (slot?.meal?.totalKcal ?? 0), 0);
-        return { ...wd, day: { ...day, totalKcal: dayTotal, slots: validSlots } };
+        return { ...wd, day: { ...day, name: wd.customDayName ?? day.name, totalKcal: dayTotal, slots: validSlots } };
       })
     );
     const validDays = daysData.filter(Boolean);
@@ -99,16 +100,10 @@ export const create = mutation({
       v.object({
         dayId: v.id("days"),
         dayOfWeek: v.number(),
+        customDayName: v.optional(v.string()),
         customSlots: v.optional(v.array(v.object({
           mealId: v.id("meals"),
-          mealType: v.union(
-            v.literal("colazione"),
-            v.literal("spuntino_mattina"),
-            v.literal("pranzo"),
-            v.literal("spuntino_pomeriggio"),
-            v.literal("cena"),
-            v.literal("altro")
-          ),
+          mealType: mealTypeValidator,
           order: v.number(),
           mealName: v.optional(v.string()),
           totalKcal: v.number(),
@@ -145,16 +140,10 @@ export const update = mutation({
       v.object({
         dayId: v.id("days"),
         dayOfWeek: v.number(),
+        customDayName: v.optional(v.string()),
         customSlots: v.optional(v.array(v.object({
           mealId: v.id("meals"),
-          mealType: v.union(
-            v.literal("colazione"),
-            v.literal("spuntino_mattina"),
-            v.literal("pranzo"),
-            v.literal("spuntino_pomeriggio"),
-            v.literal("cena"),
-            v.literal("altro")
-          ),
+          mealType: mealTypeValidator,
           order: v.number(),
           mealName: v.optional(v.string()),
           totalKcal: v.number(),

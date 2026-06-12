@@ -16,6 +16,7 @@ import type * as mealCollections from "../mealCollections.js";
 import type * as meals from "../meals.js";
 import type * as router from "../router.js";
 import type * as shopping from "../shopping.js";
+import type * as validators from "../validators.js";
 import type * as weeks from "../weeks.js";
 
 import type {
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   meals: typeof meals;
   router: typeof router;
   shopping: typeof shopping;
+  validators: typeof validators;
   weeks: typeof weeks;
 }>;
 
