@@ -6,6 +6,7 @@ import { MEAL_TYPE_LABELS, MEAL_TYPE_ICONS, MacroCategory, MealType, ALL_MEAL_TY
 import { MacroBadge } from "../components/MacroBadge";
 import { IngredientPicker } from "../components/IngredientPicker";
 import { MealCollectionPrintView } from "../components/MealCollectionPrintView";
+import { moveArrayItem, ReorderButtons } from "../components/ReorderButtons";
 import {
   Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Copy, ArrowUpDown,
   CheckSquare, Square, Printer, Save, ChevronUp as Up, ChevronDown as Down,
@@ -214,6 +215,9 @@ export function MealsPage() {
 
   function addItem() { setForm({ ...form, items: [...form.items, { ingredientId: "", weightGrams: "" }] }); }
   function removeItem(idx: number) { setForm({ ...form, items: form.items.filter((_, i) => i !== idx) }); }
+  function moveItem(idx: number, dir: -1 | 1) {
+    setForm((f) => ({ ...f, items: moveArrayItem(f.items, idx, dir) }));
+  }
   function updateItem(idx: number, field: keyof MealItemForm, value: string) {
     const items = [...form.items];
     if (field === "ingredientId" && value) {
@@ -400,7 +404,7 @@ export function MealsPage() {
       )}
       {showForm && (
         <MealFormModal form={form} setForm={setForm} editId={editId} ingredients={ingredients ?? []} totalKcal={totalKcal}
-          calcKcal={calcKcal} addItem={addItem} removeItem={removeItem} updateItem={updateItem}
+          calcKcal={calcKcal} addItem={addItem} removeItem={removeItem} updateItem={updateItem} moveItem={moveItem}
           onSubmit={handleSubmit} onClose={() => setShowForm(false)}
           expandedMeal={editId && expandedMeal?._id === editId ? expandedMeal : null} />
       )}
@@ -618,7 +622,7 @@ function SaveCollectionModal({ name, setName, notes, setNotes, selectedCount, is
 }
 
 // ── Meal Form Modal ───────────────────────────────────────────────────────────
-function MealFormModal({ form, setForm, editId, ingredients, totalKcal, calcKcal, addItem, removeItem, updateItem, onSubmit, onClose, expandedMeal }: any) {
+function MealFormModal({ form, setForm, editId, ingredients, totalKcal, calcKcal, addItem, removeItem, updateItem, moveItem, onSubmit, onClose, expandedMeal }: any) {
   const [initialized, setInitialized] = useState(false);
   if (editId && expandedMeal && !initialized) {
     setInitialized(true);
@@ -648,7 +652,10 @@ function MealFormModal({ form, setForm, editId, ingredients, totalKcal, calcKcal
           </div>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Ingredienti</label>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Ingredienti</label>
+                {form.items.length > 1 && <span className="text-xs text-gray-400 ml-2">(usa ↑↓ per riordinare)</span>}
+              </div>
               <button type="button" onClick={addItem} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"><Plus size={13} /> Aggiungi ingrediente</button>
             </div>
             <div className="space-y-2">
@@ -657,6 +664,11 @@ function MealFormModal({ form, setForm, editId, ingredients, totalKcal, calcKcal
                 const ing = ingredients.find((i: any) => i._id === item.ingredientId);
                 return (
                   <div key={idx} className="flex gap-2 items-start">
+                    {form.items.length > 1 && (
+                      <div className="pt-2">
+                        <ReorderButtons idx={idx} total={form.items.length} onMove={(dir) => moveItem(idx, dir)} />
+                      </div>
+                    )}
                     <div className="flex-1">
                       <IngredientPicker value={item.ingredientId} onChange={(id) => updateItem(idx, "ingredientId", id)} ingredients={ingredients} />
                       {ing && (ing.portionSmall || ing.portionMedium || ing.portionLarge || ing.portionSuper) && (

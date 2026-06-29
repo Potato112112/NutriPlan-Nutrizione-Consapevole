@@ -6,6 +6,7 @@ import { MEAL_TYPE_LABELS, MEAL_TYPE_ICONS, MACRO_BG, MacroCategory, MealType } 
 import { MacroBadge } from "../components/MacroBadge";
 import { IngredientPicker } from "../components/IngredientPicker";
 import { DayPrintView } from "../components/DayPrintView";
+import { moveArrayItem, ReorderButtons } from "../components/ReorderButtons";
 import { Plus, Pencil, Trash2, X, Printer, ChevronDown, ChevronUp, Copy, ArrowUpDown, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -149,6 +150,10 @@ export function DaysPage() {
 
   function removeSlot(idx: number) {
     setForm({ ...form, slots: form.slots.filter((_, i) => i !== idx) });
+  }
+
+  function moveSlot(idx: number, dir: -1 | 1) {
+    setForm((f) => ({ ...f, slots: moveArrayItem(f.slots, idx, dir) }));
   }
 
   function updateSlot(idx: number, field: keyof DaySlotForm, value: any) {
@@ -363,6 +368,7 @@ export function DaysPage() {
           selectedMealsWithItems={selectedMealsWithItems ?? []}
           addSlot={addSlot}
           removeSlot={removeSlot}
+          moveSlot={moveSlot}
           updateSlot={updateSlot}
           onSubmit={handleSubmit}
           onClose={() => setShowForm(false)}
@@ -441,7 +447,7 @@ function MealPicker({ value, onChange, meals }: {
   );
 }
 
-function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMealsWithItems, totalKcal, addSlot, removeSlot, updateSlot, onSubmit, onClose, expandedDay }: any) {
+function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMealsWithItems, totalKcal, addSlot, removeSlot, moveSlot, updateSlot, onSubmit, onClose, expandedDay }: any) {
   const [initialized, setInitialized] = useState(false);
   const mealsWithItemsMap = new Map((selectedMealsWithItems as any[]).map((meal) => [meal._id, meal]));
   if (editId && expandedDay && !initialized) {
@@ -515,6 +521,13 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
     setForm({ ...form, slots });
   }
 
+  function moveOverrideItem(slotIdx: number, itemIdx: number, dir: -1 | 1) {
+    const slots = [...form.slots];
+    const current = slots[slotIdx].overrideItems ?? [];
+    slots[slotIdx] = { ...slots[slotIdx], overrideItems: moveArrayItem(current, itemIdx, dir) };
+    setForm({ ...form, slots });
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -536,7 +549,10 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Pasti della giornata</label>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Pasti della giornata</label>
+                {form.slots.length > 1 && <span className="text-xs text-gray-400 ml-2">(usa ↑↓ per riordinare)</span>}
+              </div>
               <button
                 type="button"
                 onClick={addSlot}
@@ -554,6 +570,9 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
               {form.slots.map((slot: DaySlotForm, idx: number) => (
                 <div key={idx} className="border rounded-lg p-2">
                   <div className="flex gap-2 items-center">
+                    {form.slots.length > 1 && (
+                      <ReorderButtons idx={idx} total={form.slots.length} onMove={(dir) => moveSlot(idx, dir)} />
+                    )}
                     <div className="flex-1">
                       <MealPicker value={slot.mealId} onChange={(id) => updateSlot(idx, "mealId", id)} meals={meals} />
                     </div>
@@ -589,6 +608,9 @@ function DayFormModal({ form, setForm, editId, meals, ingredients, selectedMeals
                           </div>
                           {slot.overrideItems.map((item, itemIdx) => (
                             <div key={itemIdx} className="flex gap-2 items-center">
+                              {slot.overrideItems!.length > 1 && (
+                                <ReorderButtons idx={itemIdx} total={slot.overrideItems!.length} onMove={(dir) => moveOverrideItem(idx, itemIdx, dir)} />
+                              )}
                               <div className="flex-1">
                                 <IngredientPicker size="sm" value={item.ingredientId} onChange={(id) => updateOverrideItem(idx, itemIdx, "ingredientId", id)} ingredients={ingredients} />
                               </div>

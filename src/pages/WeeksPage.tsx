@@ -5,6 +5,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { DAY_NAMES, MealType, MEAL_TYPE_ICONS } from "../types";
 import { WeekPrintView } from "../components/WeekPrintView";
 import { IngredientPicker } from "../components/IngredientPicker";
+import { moveArrayItem, ReorderButtons } from "../components/ReorderButtons";
 import { Plus, Pencil, Trash2, X, Printer, ChevronDown, ChevronUp, ShoppingCart, Copy, ArrowUpDown, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -370,6 +371,32 @@ function getEffectiveDayKcal(wd: WeekDayForm | undefined, assignedDay: any, sele
 function WeekFormModal({ form, setForm, editId, days, ingredients, editWeekData, selectedDaysWithMeals, updateDayForWeekday, onSubmit, onClose }: any) {
   const [initialized, setInitialized] = useState(false);
   const [customizingDayOfWeek, setCustomizingDayOfWeek] = useState<number | null>(null);
+
+  function swapWeekDays(dayOfWeekA: number, dayOfWeekB: number) {
+    setForm((f: WeekForm) => {
+      const a = f.weekDays.find((wd) => wd.dayOfWeek === dayOfWeekA);
+      const b = f.weekDays.find((wd) => wd.dayOfWeek === dayOfWeekB);
+      if (!a || !b) return f;
+      return {
+        ...f,
+        weekDays: f.weekDays.map((wd) => {
+          if (wd.dayOfWeek === dayOfWeekA) {
+            return { ...wd, dayId: b.dayId, customDayName: b.customDayName, customSlots: b.customSlots };
+          }
+          if (wd.dayOfWeek === dayOfWeekB) {
+            return { ...wd, dayId: a.dayId, customDayName: a.customDayName, customSlots: a.customSlots };
+          }
+          return wd;
+        }),
+      };
+    });
+  }
+
+  function moveWeekDay(dayOfWeek: number, dir: -1 | 1) {
+    const target = dayOfWeek + dir;
+    if (target < 0 || target > 6) return;
+    swapWeekDays(dayOfWeek, target);
+  }
   if (editId && editWeekData && !initialized) {
     setInitialized(true);
     setForm((f: WeekForm) => ({
@@ -423,7 +450,10 @@ function WeekFormModal({ form, setForm, editId, days, ingredients, editWeekData,
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Assegna una giornata per ogni giorno</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Assegna una giornata per ogni giorno
+              <span className="text-xs text-gray-400 font-normal ml-2">(usa ↑↓ per scambiare le assegnazioni)</span>
+            </label>
             <div className="grid grid-cols-1 gap-2">
               {Array.from({ length: 7 }, (_, i) => {
                 const wd = form.weekDays.find((w: WeekDayForm) => w.dayOfWeek === i);
@@ -434,7 +464,8 @@ function WeekFormModal({ form, setForm, editId, days, ingredients, editWeekData,
                 return (
                   <div key={i} className="space-y-1">
                     <div className="flex items-center gap-3">
-                      <div className="w-24 shrink-0">
+                      <ReorderButtons idx={i} total={7} onMove={(dir) => moveWeekDay(i, dir)} />
+                      <div className="w-20 shrink-0">
                         <span className="text-sm font-semibold text-gray-700">{DAY_NAMES[i]}</span>
                       </div>
                       <select
@@ -459,7 +490,7 @@ function WeekFormModal({ form, setForm, editId, days, ingredients, editWeekData,
                       </button>
                     </div>
                     {wd?.dayId && effectiveDayName && (
-                      <div className="ml-24 text-xs text-gray-500">
+                      <div className="ml-[4.5rem] text-xs text-gray-500">
                         Nome in questa settimana:{" "}
                         <span className={`font-medium ${hasCustomName ? "text-emerald-700" : "text-gray-700"}`}>
                           {effectiveDayName}
@@ -563,6 +594,18 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
     setSlots(next);
   }
 
+  function moveSlot(slotIdx: number, dir: -1 | 1) {
+    setSlots((prev) => moveArrayItem(prev, slotIdx, dir).map((s, i) => ({ ...s, order: i })));
+  }
+
+  function moveItem(slotIdx: number, itemIdx: number, dir: -1 | 1) {
+    setSlots((prev) => {
+      const next = [...prev];
+      next[slotIdx] = { ...next[slotIdx], items: moveArrayItem(next[slotIdx].items, itemIdx, dir) };
+      return next;
+    });
+  }
+
   function saveCustomizations() {
     const trimmedName = customDayName.trim();
     setForm((prev: WeekForm) => ({
@@ -606,27 +649,39 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
           </div>
           {slots.map((slot, slotIdx) => (
             <div key={`${slot.mealId}_${slotIdx}`} className="border rounded-lg p-3">
-              <div className="mb-2">
-                <label className="text-xs text-gray-500">{MEAL_TYPE_ICONS[slot.mealType]} Nome pasto (solo in questa settimana)</label>
-                <input
-                  type="text"
-                  value={slot.mealName ?? ""}
-                  onChange={(e) => updateMealName(slotIdx, e.target.value)}
-                  className="w-full mt-0.5 border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
-                  placeholder="Nome del pasto"
-                />
-              </div>
-              <div className="space-y-1.5">
-                {(slot.items ?? []).map((item: any, itemIdx: number) => (
-                  <div key={itemIdx} className="flex gap-2 items-center">
-                    <div className="flex-1">
-                      <IngredientPicker size="sm" value={item.ingredientId} onChange={(id) => updateItem(slotIdx, itemIdx, "ingredientId", id)} ingredients={ingredients} />
-                    </div>
-                    <input type="number" min="1" step="1" value={item.weightGrams} onChange={(e) => updateItem(slotIdx, itemIdx, "weightGrams", e.target.value)} className="w-24 border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="grammi" />
-                    <button type="button" onClick={() => removeItem(slotIdx, itemIdx)} className="p-1 text-gray-400 hover:text-red-500"><X size={12} /></button>
+              <div className="flex gap-2 items-start">
+                {slots.length > 1 && (
+                  <div className="pt-1">
+                    <ReorderButtons idx={slotIdx} total={slots.length} onMove={(dir) => moveSlot(slotIdx, dir)} />
                   </div>
-                ))}
-                <button type="button" onClick={() => addItem(slotIdx)} className="text-xs text-emerald-600 hover:text-emerald-700">+ Aggiungi ingrediente</button>
+                )}
+                <div className="flex-1">
+                  <div className="mb-2">
+                    <label className="text-xs text-gray-500">{MEAL_TYPE_ICONS[slot.mealType]} Nome pasto (solo in questa settimana)</label>
+                    <input
+                      type="text"
+                      value={slot.mealName ?? ""}
+                      onChange={(e) => updateMealName(slotIdx, e.target.value)}
+                      className="w-full mt-0.5 border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      placeholder="Nome del pasto"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    {(slot.items ?? []).map((item: any, itemIdx: number) => (
+                      <div key={itemIdx} className="flex gap-2 items-center">
+                        {(slot.items ?? []).length > 1 && (
+                          <ReorderButtons idx={itemIdx} total={(slot.items ?? []).length} onMove={(dir) => moveItem(slotIdx, itemIdx, dir)} />
+                        )}
+                        <div className="flex-1">
+                          <IngredientPicker size="sm" value={item.ingredientId} onChange={(id) => updateItem(slotIdx, itemIdx, "ingredientId", id)} ingredients={ingredients} />
+                        </div>
+                        <input type="number" min="1" step="1" value={item.weightGrams} onChange={(e) => updateItem(slotIdx, itemIdx, "weightGrams", e.target.value)} className="w-24 border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="grammi" />
+                        <button type="button" onClick={() => removeItem(slotIdx, itemIdx)} className="p-1 text-gray-400 hover:text-red-500"><X size={12} /></button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addItem(slotIdx)} className="text-xs text-emerald-600 hover:text-emerald-700">+ Aggiungi ingrediente</button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
