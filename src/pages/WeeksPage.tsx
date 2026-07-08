@@ -371,6 +371,7 @@ function getEffectiveDayKcal(wd: WeekDayForm | undefined, assignedDay: any, sele
 function WeekFormModal({ form, setForm, editId, days, ingredients, editWeekData, selectedDaysWithMeals, updateDayForWeekday, onSubmit, onClose }: any) {
   const [initialized, setInitialized] = useState(false);
   const [customizingDayOfWeek, setCustomizingDayOfWeek] = useState<number | null>(null);
+  const meals = useQuery(api.meals.list) ?? [];
 
   function swapWeekDays(dayOfWeekA: number, dayOfWeekB: number) {
     setForm((f: WeekForm) => {
@@ -536,6 +537,7 @@ function WeekFormModal({ form, setForm, editId, days, ingredients, editWeekData,
           setForm={setForm}
           selectedDaysWithMeals={selectedDaysWithMeals}
           ingredients={ingredients}
+          meals={meals}
           onClose={() => setCustomizingDayOfWeek(null)}
         />
       )}
@@ -557,11 +559,79 @@ function buildInitialSlots(wd: WeekDayForm | undefined, selectedDay: any) {
   }));
 }
 
-function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals, ingredients, onClose }: any) {
+function MealPicker({ value, onChange, meals }: { value: string; onChange: (id: string) => void; meals: any[] }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const sorted = [...meals].sort((a, b) => a.name.localeCompare(b.name, "it"));
+  const filtered = search
+    ? sorted.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()))
+    : sorted;
+
+  const selected = meals.find((m) => m._id === value);
+
+  if (selected) {
+    return (
+      <div className="flex items-center gap-2 border rounded-lg px-2 py-1.5 bg-emerald-50 border-emerald-200">
+        <span className="text-sm">{MEAL_TYPE_ICONS[selected.mealType as MealType]}</span>
+        <span className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-gray-800">{selected.name}</span>
+          <span className="text-xs text-gray-500 ml-1">({Math.round(selected.totalKcal)} kcal)</span>
+        </span>
+        <button type="button" onClick={() => onChange("")} className="text-gray-400 hover:text-red-500">
+          <X size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Cerca pasto..."
+        className="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+      />
+      {open && (
+        <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.slice(0, 50).map((m: any) => (
+            <button
+              key={m._id}
+              type="button"
+              onMouseDown={() => { onChange(m._id); setSearch(""); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex items-start gap-2"
+            >
+              <span className="mt-0.5">{MEAL_TYPE_ICONS[m.mealType as MealType]}</span>
+              <span className="flex-1 min-w-0">
+                <span className="font-medium text-gray-800 block">{m.name}</span>
+              </span>
+              <span className="text-xs text-gray-400 shrink-0 mt-0.5">{Math.round(m.totalKcal)} kcal</span>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-3">Nessun risultato</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals, ingredients, meals, onClose }: any) {
   const wd = form.weekDays.find((x: WeekDayForm) => x.dayOfWeek === dayOfWeek);
   const selectedDay = (selectedDaysWithMeals as any[]).find((d: any) => d._id === wd?.dayId);
   const [slots, setSlots] = useState<any[]>([]);
   const [customDayName, setCustomDayName] = useState("");
+  const allMealIds = (meals as any[]).map((m: any) => m._id as Id<"meals">);
+  const allMealsWithItems = useQuery(
+    api.meals.getManyWithItems,
+    allMealIds.length > 0 ? { mealIds: allMealIds } : "skip"
+  );
+  const allMealsWithItemsMap = new Map((allMealsWithItems ?? []).map((meal: any) => [meal._id, meal]));
 
   useEffect(() => {
     if (!selectedDay || !wd?.dayId) return;
@@ -572,6 +642,37 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
   function updateMealName(slotIdx: number, name: string) {
     const next = [...slots];
     next[slotIdx] = { ...next[slotIdx], mealName: name };
+    setSlots(next);
+  }
+
+  function replaceSlotMeal(slotIdx: number, mealId: string) {
+    const next = [...slots];
+    if (!mealId) {
+      next[slotIdx] = {
+        ...next[slotIdx],
+        mealId: "",
+        mealName: "",
+        items: [{ ingredientId: "", weightGrams: "" }],
+      };
+      setSlots(next);
+      return;
+    }
+
+    const meal = (meals as any[]).find((m: any) => m._id === mealId);
+    const mealWithItems = allMealsWithItemsMap.get(mealId);
+    next[slotIdx] = {
+      ...next[slotIdx],
+      mealId,
+      mealType: meal?.mealType ?? next[slotIdx].mealType,
+      mealName: meal?.name ?? "",
+      items: (mealWithItems?.items ?? []).map((item: any) => ({
+        ingredientId: item.ingredientId,
+        weightGrams: String(item.weightGrams),
+      })),
+    };
+    if (!next[slotIdx].items.length) {
+      next[slotIdx].items = [{ ingredientId: "", weightGrams: "" }];
+    }
     setSlots(next);
   }
 
@@ -656,6 +757,12 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
                   </div>
                 )}
                 <div className="flex-1">
+                  <div className="mb-2">
+                    <label className="text-xs text-gray-500">Sostituisci pasto con uno esistente</label>
+                    <div className="mt-0.5">
+                      <MealPicker value={slot.mealId} onChange={(id) => replaceSlotMeal(slotIdx, id)} meals={meals} />
+                    </div>
+                  </div>
                   <div className="mb-2">
                     <label className="text-xs text-gray-500">{MEAL_TYPE_ICONS[slot.mealType]} Nome pasto (solo in questa settimana)</label>
                     <input
