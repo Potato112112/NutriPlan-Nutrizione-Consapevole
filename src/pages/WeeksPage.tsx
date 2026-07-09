@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { DAY_NAMES, MealType, MEAL_TYPE_ICONS } from "../types";
+import { ALL_MEAL_TYPES, DAY_NAMES, MealType, MEAL_TYPE_ICONS, MEAL_TYPE_LABELS } from "../types";
 import { WeekPrintView } from "../components/WeekPrintView";
 import { IngredientPicker } from "../components/IngredientPicker";
 import { moveArrayItem, ReorderButtons } from "../components/ReorderButtons";
@@ -14,7 +14,7 @@ type WeekDayForm = {
   dayOfWeek: number;
   customDayName?: string;
   customSlots?: {
-    mealId: Id<"meals">;
+    mealId: Id<"meals"> | "";
     mealType: MealType;
     order: number;
     mealName?: string;
@@ -24,6 +24,77 @@ type WeekDayForm = {
     }[];
   }[];
 };
+
+type CustomSlotForm = NonNullable<WeekDayForm["customSlots"]>[number];
+
+function mapSlotItems(
+  items: CustomSlotForm["items"],
+  ingredients: any[]
+) {
+  return items
+    .filter((item) => item.ingredientId && item.weightGrams && parseFloat(item.weightGrams) > 0)
+    .map((item) => {
+      const ing = ingredients.find((i) => i._id === item.ingredientId);
+      const grams = parseFloat(item.weightGrams);
+      return {
+        ingredientId: item.ingredientId as Id<"ingredients">,
+        weightGrams: grams,
+        kcal: ing ? (ing.kcalPer100g * grams) / 100 : 0,
+      };
+    });
+}
+
+async function resolveCustomSlotsMealIds(
+  slots: CustomSlotForm[] | undefined,
+  ingredients: any[],
+  createMeal: (args: {
+    name: string;
+    mealType: MealType;
+    items: { ingredientId: Id<"ingredients">; weightGrams: number; kcal: number }[];
+  }) => Promise<Id<"meals">>
+): Promise<CustomSlotForm[] | undefined> {
+  if (!slots || slots.length === 0) return undefined;
+
+  const resolved: CustomSlotForm[] = [];
+  for (const slot of slots) {
+    const mappedItems = mapSlotItems(slot.items, ingredients);
+    if (mappedItems.length === 0) continue;
+
+    let mealId = slot.mealId;
+    if (!mealId) {
+      const name = slot.mealName?.trim();
+      if (!name) throw new Error("Inserisci un nome per ogni pasto nuovo");
+      mealId = await createMeal({
+        name,
+        mealType: slot.mealType,
+        items: mappedItems,
+      });
+    }
+
+    resolved.push({ ...slot, mealId });
+  }
+
+  return resolved.length > 0 ? resolved : undefined;
+}
+
+function buildCustomSlotsPayload(
+  slots: CustomSlotForm[] | undefined,
+  ingredients: any[]
+) {
+  return slots
+    ?.map((slot) => {
+      const mappedItems = mapSlotItems(slot.items, ingredients);
+      return {
+        mealId: slot.mealId as Id<"meals">,
+        mealType: slot.mealType,
+        order: slot.order,
+        mealName: slot.mealName,
+        totalKcal: mappedItems.reduce((sum, item) => sum + item.kcal, 0),
+        items: mappedItems,
+      };
+    })
+    .filter((slot) => slot.items.length > 0);
+}
 
 type WeekForm = {
   name: string;
@@ -62,6 +133,7 @@ export function WeeksPage() {
     selectedDayIds.length > 0 ? { dayIds: selectedDayIds } : "skip"
   );
   const createWeek = useMutation(api.weeks.create);
+  const createMeal = useMutation(api.meals.create);
   const updateWeek = useMutation(api.weeks.update);
   const removeWeek = useMutation(api.weeks.remove);
   const duplicateWeek = useMutation(api.weeks.duplicate);
@@ -90,36 +162,22 @@ export function WeeksPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validDays = form.weekDays.filter((wd) => wd.dayId);
-    const weekDays = validDays.map((wd) => ({
-      dayId: wd.dayId as Id<"days">,
-      dayOfWeek: wd.dayOfWeek,
-      ...(wd.customDayName?.trim() ? { customDayName: wd.customDayName.trim() } : {}),
-      customSlots: wd.customSlots
-        ?.map((slot) => {
-          const mappedItems = slot.items
-            .filter((item) => item.ingredientId && item.weightGrams && parseFloat(item.weightGrams) > 0)
-            .map((item) => {
-              const ing = (ingredients ?? []).find((i) => i._id === item.ingredientId);
-              const grams = parseFloat(item.weightGrams);
-              return {
-                ingredientId: item.ingredientId as Id<"ingredients">,
-                weightGrams: grams,
-                kcal: ing ? (ing.kcalPer100g * grams) / 100 : 0,
-              };
-            });
-          return {
-            mealId: slot.mealId,
-            mealType: slot.mealType,
-            order: slot.order,
-            mealName: slot.mealName,
-            totalKcal: mappedItems.reduce((sum, item) => sum + item.kcal, 0),
-            items: mappedItems,
-          };
-        })
-        .filter((slot) => slot.items.length > 0),
-    }));
     try {
+      const validDays = form.weekDays.filter((wd) => wd.dayId);
+      const weekDays = [];
+      for (const wd of validDays) {
+        const customSlots = await resolveCustomSlotsMealIds(
+          wd.customSlots,
+          ingredients ?? [],
+          createMeal
+        );
+        weekDays.push({
+          dayId: wd.dayId as Id<"days">,
+          dayOfWeek: wd.dayOfWeek,
+          ...(wd.customDayName?.trim() ? { customDayName: wd.customDayName.trim() } : {}),
+          customSlots: buildCustomSlotsPayload(customSlots, ingredients ?? []),
+        });
+      }
       if (editId) {
         await updateWeek({ id: editId, name: form.name, notes: form.notes || undefined, weekDays });
         toast.success("Settimana aggiornata");
@@ -624,8 +682,10 @@ function MealPicker({ value, onChange, meals }: { value: string; onChange: (id: 
 function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals, ingredients, meals, onClose }: any) {
   const wd = form.weekDays.find((x: WeekDayForm) => x.dayOfWeek === dayOfWeek);
   const selectedDay = (selectedDaysWithMeals as any[]).find((d: any) => d._id === wd?.dayId);
-  const [slots, setSlots] = useState<any[]>([]);
+  const [slots, setSlots] = useState<CustomSlotForm[]>([]);
   const [customDayName, setCustomDayName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const createMeal = useMutation(api.meals.create);
   const allMealIds = (meals as any[]).map((m: any) => m._id as Id<"meals">);
   const allMealsWithItems = useQuery(
     api.meals.getManyWithItems,
@@ -645,6 +705,50 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
     setSlots(next);
   }
 
+  function updateMealType(slotIdx: number, mealType: MealType) {
+    const next = [...slots];
+    next[slotIdx] = { ...next[slotIdx], mealType };
+    setSlots(next);
+  }
+
+  function buildSlotFromMeal(mealId: string, order: number): CustomSlotForm {
+    const meal = (meals as any[]).find((m: any) => m._id === mealId);
+    const mealWithItems = allMealsWithItemsMap.get(mealId);
+    const items = (mealWithItems?.items ?? []).map((item: any) => ({
+      ingredientId: item.ingredientId,
+      weightGrams: String(item.weightGrams),
+    }));
+    return {
+      mealId,
+      mealType: meal?.mealType ?? "pasto",
+      order,
+      mealName: meal?.name ?? "",
+      items: items.length > 0 ? items : [{ ingredientId: "", weightGrams: "" }],
+    };
+  }
+
+  function addSlotFromDatabase(mealId: string) {
+    if (!mealId) return;
+    setSlots((prev) => [...prev, buildSlotFromMeal(mealId, prev.length)]);
+  }
+
+  function addSlotNew() {
+    setSlots((prev) => [
+      ...prev,
+      {
+        mealId: "",
+        mealType: "pasto",
+        order: prev.length,
+        mealName: "",
+        items: [{ ingredientId: "", weightGrams: "" }],
+      },
+    ]);
+  }
+
+  function removeSlot(slotIdx: number) {
+    setSlots((prev) => prev.filter((_, i) => i !== slotIdx).map((s, i) => ({ ...s, order: i })));
+  }
+
   function replaceSlotMeal(slotIdx: number, mealId: string) {
     const next = [...slots];
     if (!mealId) {
@@ -657,22 +761,7 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
       setSlots(next);
       return;
     }
-
-    const meal = (meals as any[]).find((m: any) => m._id === mealId);
-    const mealWithItems = allMealsWithItemsMap.get(mealId);
-    next[slotIdx] = {
-      ...next[slotIdx],
-      mealId,
-      mealType: meal?.mealType ?? next[slotIdx].mealType,
-      mealName: meal?.name ?? "",
-      items: (mealWithItems?.items ?? []).map((item: any) => ({
-        ingredientId: item.ingredientId,
-        weightGrams: String(item.weightGrams),
-      })),
-    };
-    if (!next[slotIdx].items.length) {
-      next[slotIdx].items = [{ ingredientId: "", weightGrams: "" }];
-    }
+    next[slotIdx] = buildSlotFromMeal(mealId, next[slotIdx].order);
     setSlots(next);
   }
 
@@ -707,17 +796,29 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
     });
   }
 
-  function saveCustomizations() {
-    const trimmedName = customDayName.trim();
-    setForm((prev: WeekForm) => ({
-      ...prev,
-      weekDays: prev.weekDays.map((x) => x.dayOfWeek === dayOfWeek ? {
-        ...x,
-        customDayName: trimmedName || undefined,
-        customSlots: slots,
-      } : x),
-    }));
-    onClose();
+  async function saveCustomizations() {
+    setSaving(true);
+    try {
+      const resolvedSlots = await resolveCustomSlotsMealIds(slots, ingredients, createMeal);
+      if (slots.length > 0 && !resolvedSlots) {
+        toast.error("Aggiungi almeno un pasto con ingredienti validi");
+        return;
+      }
+      const trimmedName = customDayName.trim();
+      setForm((prev: WeekForm) => ({
+        ...prev,
+        weekDays: prev.weekDays.map((x) => x.dayOfWeek === dayOfWeek ? {
+          ...x,
+          customDayName: trimmedName || undefined,
+          customSlots: resolvedSlots,
+        } : x),
+      }));
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function clearCustomizations() {
@@ -748,8 +849,29 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
               placeholder="Nome della giornata"
             />
           </div>
+          <div className="border border-dashed rounded-lg p-3 space-y-3 bg-gray-50">
+            <div className="text-sm font-medium text-gray-700">Aggiungi pasto</div>
+            <div>
+              <label className="text-xs text-gray-500">Dal database</label>
+              <div className="mt-0.5">
+                <MealPicker value="" onChange={addSlotFromDatabase} meals={meals} />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={addSlotNew}
+              className="flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+            >
+              <Plus size={14} /> Crea nuovo pasto da zero
+            </button>
+          </div>
+          {slots.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4 border rounded-lg">
+              Nessun pasto in questa giornata. Aggiungine uno dal database o creane uno nuovo.
+            </p>
+          )}
           {slots.map((slot, slotIdx) => (
-            <div key={`${slot.mealId}_${slotIdx}`} className="border rounded-lg p-3">
+            <div key={`slot_${slotIdx}`} className="border rounded-lg p-3">
               <div className="flex gap-2 items-start">
                 {slots.length > 1 && (
                   <div className="pt-1">
@@ -757,14 +879,48 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
                   </div>
                 )}
                 <div className="flex-1">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Pasto {slotIdx + 1}
+                      {!slot.mealId && <span className="text-emerald-600 normal-case ml-1">· nuovo</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeSlot(slotIdx)}
+                      className="p-1 text-gray-400 hover:text-red-500 rounded"
+                      title="Rimuovi pasto"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  {!slot.mealId && (
+                    <div className="mb-2">
+                      <label className="text-xs text-gray-500">Tipo pasto *</label>
+                      <select
+                        value={slot.mealType}
+                        onChange={(e) => updateMealType(slotIdx, e.target.value as MealType)}
+                        className="w-full mt-0.5 border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      >
+                        {ALL_MEAL_TYPES.map((t) => (
+                          <option key={t} value={t}>{MEAL_TYPE_ICONS[t]} {MEAL_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="mb-2">
-                    <label className="text-xs text-gray-500">Sostituisci pasto con uno esistente</label>
+                    <label className="text-xs text-gray-500">
+                      {slot.mealId
+                        ? `${MEAL_TYPE_ICONS[slot.mealType]} Sostituisci con un pasto esistente`
+                        : "Oppure seleziona un pasto esistente"}
+                    </label>
                     <div className="mt-0.5">
                       <MealPicker value={slot.mealId} onChange={(id) => replaceSlotMeal(slotIdx, id)} meals={meals} />
                     </div>
                   </div>
                   <div className="mb-2">
-                    <label className="text-xs text-gray-500">{MEAL_TYPE_ICONS[slot.mealType]} Nome pasto (solo in questa settimana)</label>
+                    <label className="text-xs text-gray-500">
+                      {MEAL_TYPE_ICONS[slot.mealType]} Nome pasto{slot.mealId ? " (solo in questa settimana)" : " *"}
+                    </label>
                     <input
                       type="text"
                       value={slot.mealName ?? ""}
@@ -772,6 +928,9 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
                       className="w-full mt-0.5 border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                       placeholder="Nome del pasto"
                     />
+                    {!slot.mealId && (
+                      <p className="text-xs text-gray-400 mt-1">Verrà salvato anche nel database pasti.</p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     {(slot.items ?? []).map((item: any, itemIdx: number) => (
@@ -796,7 +955,14 @@ function WeekDayCustomizeModal({ dayOfWeek, form, setForm, selectedDaysWithMeals
             <button type="button" onClick={clearCustomizations} className="border rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">Rimuovi personalizzazioni</button>
             <div className="flex-1" />
             <button type="button" onClick={onClose} className="border rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">Annulla</button>
-            <button type="button" onClick={saveCustomizations} className="bg-emerald-600 text-white rounded-lg px-3 py-2 text-sm hover:bg-emerald-700">Salva personalizzazione</button>
+            <button
+              type="button"
+              onClick={saveCustomizations}
+              disabled={saving}
+              className="bg-emerald-600 text-white rounded-lg px-3 py-2 text-sm hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {saving ? "Salvataggio..." : "Salva personalizzazione"}
+            </button>
           </div>
         </div>
       </div>
